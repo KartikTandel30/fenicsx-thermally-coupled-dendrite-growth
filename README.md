@@ -1,4 +1,4 @@
-# Phase-Field Modeling of Dendritic Solidification in FEniCSx
+# FEniCSx Implementation of a Two-Dimensional, Thermally Coupled Phase-Field Model for Dendrite Growth
 
 Finite-element implementation and numerical verification of phase-field models for
 dendritic solidification using **FEniCSx / DOLFINx**, **PETSc**, **MPI**, and **Python**.
