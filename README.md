@@ -28,14 +28,75 @@ The development is based on the pure-metal-style phase-field formulation discuss
 - **Interface physics:** double-well bulk potential, diffuse-interface gradient energy and four-fold orientation dependence.
 - **Diagnostics:** stored energy histories, interface position/thickness, balance diagnostics and dendrite-tip tracking.
 
-The governing system under study has the schematic form
+### Complete governing model, including anisotropy
+
+The phase-field and nondimensional thermal/diffusion equations used to develop this project are
 
 $$
-\tau(\mathbf n)\,\partial_t\phi = -\frac{\partial f}{\partial\phi} + \nabla\cdot\mathbf Q, \qquad
-\partial_t u = D\nabla^2u + K\,\partial_t\phi.
+\boxed{
+\tau_0\,a(\mathbf n)^2\,\frac{\partial\phi}{\partial t}
+= -\underbrace{\left[-\phi+\phi^3+\zeta u(1-2\phi^2+\phi^4)\right]}_{\partial f/\partial\phi}
++\nabla\cdot\mathbf Q(\nabla\phi)
+}
 $$
 
-Here, `f(φ,u)` is the bulk free-energy density, `Q` represents the interfacial contribution, `τ` is the interface relaxation coefficient, `D` is the diffusion coefficient, and `K` controls latent-heat coupling. The actual discretizations, coefficients and derivations are documented in [the original technical notes](docs/DEVELOPMENT_NOTES.md).
+$$
+\boxed{\frac{\partial u}{\partial t}=D\nabla^2u+K\frac{\partial\phi}{\partial t}}
+$$
+
+The anisotropy is **not only a coefficient multiplying the gradient term**: in the implemented formulation, it changes both the interface kinetics, through $\tau_0a^2$, and the interfacial flux $\mathbf Q$.
+
+#### Four-fold anisotropy and interfacial flux
+
+The code (`Final.py`) defines the regularized interface normal and four-fold anisotropy function as
+
+$$
+\mathbf n=\frac{\nabla\phi}{\sqrt{|\nabla\phi|^2+\eta^2}},
+\qquad
+ a(\mathbf n)=(1-3\epsilon_4)+4\epsilon_4(n_x^4+n_y^4).
+$$
+
+The **complete anisotropic flux used by the source code** is
+
+$$
+\boxed{
+\mathbf Q(\nabla\phi)=\lambda_0^2\left[
+ a(\mathbf n)^2\nabla\phi
+ +a(\mathbf n)|\nabla\phi|^2\frac{\partial a}{\partial(\nabla\phi)}
+\right]}
+$$
+
+with
+
+$$
+\frac{\partial a}{\partial(\nabla\phi)}
+=\frac{\mathbf I-\mathbf n\otimes\mathbf n}{\sqrt{|\nabla\phi|^2+\eta^2}}
+\begin{bmatrix}16\epsilon_4 n_x^3\\16\epsilon_4 n_y^3\end{bmatrix}.
+$$
+
+Here $\epsilon_4$ is the four-fold anisotropy strength, $\lambda_0$ sets the diffuse-interface length scale, $\eta$ regularizes the interface normal, $\zeta$ controls the bulk thermal driving term, $D$ is the thermal diffusivity, and $K$ is the latent-heat coupling coefficient. The implementation uses homogeneous natural (no-flux) boundary conditions. Setting $\epsilon_4=0$ gives $a=1$ and $\mathbf Q=\lambda_0^2\nabla\phi$, recovering the isotropic gradient contribution.
+
+#### Backward-Euler finite-element residuals
+
+For test functions $w_\phi$ and $w_u$, the intended fully coupled formulation after multiplying by $\Delta t$ is
+
+$$
+\begin{aligned}
+R_\phi={}&\int_\Omega \tau_0a(\mathbf n)^2(\phi^{n+1}-\phi^n)w_\phi\,d\Omega\\
+&+\Delta t\int_\Omega \frac{\partial f}{\partial\phi}(\phi^{n+1},u^{n+1})w_\phi\,d\Omega\\
+&+\Delta t\int_\Omega\mathbf Q(\nabla\phi^{n+1})\cdot\nabla w_\phi\,d\Omega=0,
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
+R_u={}&\int_\Omega(u^{n+1}-u^n)w_u\,d\Omega
+-K\int_\Omega(\phi^{n+1}-\phi^n)w_u\,d\Omega\\
+&+\Delta t D\int_\Omega\nabla u^{n+1}\cdot\nabla w_u\,d\Omega=0.
+\end{aligned}
+$$
+
+**Implementation status:** In the current root `Final.py`, $\epsilon_4=0.05$ is active but $\zeta=0$ and $K=0$, so its recorded morphology is an **anisotropic, thermally decoupled benchmark**, not proof of fully coupled dendritic growth. Moreover, the currently checked-in thermal residual in `Final.py` and `Task_2/task_2.py` contains an additional factor of `dt` multiplying the $K(\phi^{n+1}-\phi^n)$ term, unlike the *intended* residual displayed above. That implementation must be corrected and verified before claiming coupled conservation or quantitative validation. For the complete source-level development discussion, see [Development notes](docs/DEVELOPMENT_NOTES.md) and [Verification](docs/VERIFICATION.md).
 
 ## Implementation and development stages
 
